@@ -39,8 +39,28 @@ impl Mp4Box for FileTypeBox {
     const BOX_TYPE: [u8; 4] = *b"ftyp";
 
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        write_all!(writer, b"isom"); // major_brand
-        write_u32!(writer, 512); // minor_version
+        write_all!(writer, b"iso6"); // major_brand
+        write_u32!(writer, 1); // minor_version
+        write_all!(writer, b"isom"); // compatible brand
+        write_all!(writer, b"iso6"); // compatible brand
+        write_all!(writer, b"dash"); // compatible brand
+        Ok(())
+    }
+}
+
+/// 4.3 Segment Type Box (ISO/IEC 14496-12).
+#[allow(missing_docs)]
+#[derive(Debug, Default)]
+pub struct SegmentTypeBox;
+impl Mp4Box for SegmentTypeBox {
+    const BOX_TYPE: [u8; 4] = *b"styp";
+
+    fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        write_all!(writer, b"iso6"); // major_brand
+        write_u32!(writer, 1); // minor_version
+        write_all!(writer, b"isom"); // compatible brand
+        write_all!(writer, b"iso6"); // compatible brand
+        write_all!(writer, b"dash"); // compatible brand
         Ok(())
     }
 }
@@ -59,8 +79,8 @@ impl Mp4Box for MovieBox {
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
         track_assert!(!self.trak_boxes.is_empty(), ErrorKind::InvalidInput);
         write_box!(writer, self.mvhd_box);
-        write_boxes!(writer, &self.trak_boxes);
         write_box!(writer, self.mvex_box);
+        write_boxes!(writer, &self.trak_boxes);
         Ok(())
     }
 }
@@ -77,7 +97,7 @@ impl Mp4Box for MovieExtendsBox {
 
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
         track_assert!(!self.trex_boxes.is_empty(), ErrorKind::InvalidInput);
-        write_box!(writer, self.mehd_box);
+        //write_box!(writer, self.mehd_box);
         write_boxes!(writer, &self.trex_boxes);
         Ok(())
     }
@@ -177,7 +197,7 @@ impl Mp4Box for MovieHeaderBox {
             write_i32!(writer, x); // matrix
         }
         write_zeroes!(writer, 4 * 6);
-        write_u32!(writer, 0xFFFF_FFFF); // next_track_id
+        write_u32!(writer, 1); // next_track_id
         Ok(())
     }
 }
@@ -205,7 +225,7 @@ impl Mp4Box for TrackBox {
 
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
         write_box!(writer, self.tkhd_box);
-        write_box!(writer, self.edts_box);
+        //write_box!(writer, self.edts_box);
         write_box!(writer, self.mdia_box);
         Ok(())
     }
@@ -244,7 +264,8 @@ impl Mp4Box for TrackHeaderBox {
     }
     fn box_flags(&self) -> Option<u32> {
         // track_enabled | track_in_movie | track_in_preview
-        let flags = 0x00_0001 | 0x00_0002 | 0x00_0004;
+        //let flags = 0x00_0001 | 0x00_0002 | 0x00_0004;
+        let flags = 0x00_000f;
         Some(flags)
     }
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
@@ -358,7 +379,7 @@ impl Mp4Box for MediaHeaderBox {
         write_u32!(writer, 0); // modification_time
         write_u32!(writer, self.timescale);
         write_u32!(writer, self.duration);
-        write_u16!(writer, 0x55c4); // language
+        write_u16!(writer, 0x15c7); // eng language
         write_zeroes!(writer, 2);
         Ok(())
     }
@@ -373,9 +394,9 @@ pub struct HandlerReferenceBox {
 impl HandlerReferenceBox {
     fn new(is_video: bool) -> Self {
         let name = if is_video {
-            "Video Handler"
+            "VideoHandler"
         } else {
-            "Sound Handler"
+            "SoundHandler"
         };
         HandlerReferenceBox {
             handler_type: if is_video { *b"vide" } else { *b"soun" },

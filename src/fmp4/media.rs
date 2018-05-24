@@ -1,7 +1,7 @@
 use std::io::Write;
 
 use {ErrorKind, Result};
-use fmp4::{Mp4Box, AUDIO_TRACK_ID, VIDEO_TRACK_ID};
+use fmp4::{Mp4Box, SegmentTypeBox, AUDIO_TRACK_ID, VIDEO_TRACK_ID};
 use io::WriteTo;
 
 /// [ISO BMFF Byte Stream Format: 4. Media Segments][media_segment]
@@ -18,6 +18,56 @@ impl WriteTo for MediaSegment {
         track_assert!(!self.mdat_boxes.is_empty(), ErrorKind::InvalidInput);
         write_box!(writer, self.moof_box);
         write_boxes!(writer, &self.mdat_boxes);
+        Ok(())
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Default)]
+pub struct DashMediaSegment {
+    pub styp_box: SegmentTypeBox,
+    pub sidx_box: SegmentIndexBox,
+    pub moof_box: MovieFragmentBox,
+    pub mdat_boxes: Vec<MediaDataBox>,
+}
+impl WriteTo for DashMediaSegment {
+    fn write_to<W: Write>(&self, mut writer: W) -> Result<()> {
+        track_assert!(!self.mdat_boxes.is_empty(), ErrorKind::InvalidInput);
+        write_box!(writer, self.styp_box);
+        write_box!(writer, self.sidx_box);
+        write_box!(writer, self.moof_box);
+        write_boxes!(writer, &self.mdat_boxes);
+        Ok(())
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Default)]
+pub struct SegmentIndexBox {
+    pub reference_size: u32,
+    pub earliest_pres_time: u32,
+    pub duration: u32,
+    pub timescale: u32,
+}
+
+impl Mp4Box for SegmentIndexBox {
+    const BOX_TYPE: [u8; 4] = *b"sidx";
+
+    fn box_version(&self) -> Option<u8> {
+        Some(0)
+    }
+
+    fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        write_u32!(writer, 2); // reference id
+        write_u32!(writer, self.timescale); // timescale
+        write_u32!(writer, self.earliest_pres_time); // earlist presentation time
+        write_u32!(writer, 0); // ???
+        write_u16!(writer, 0); // reserved
+        write_u16!(writer, 1); // reference count
+        write_u32!(writer, self.reference_size); // first bit is reference type, the rest is the reference size
+        write_u32!(writer, self.duration); // subsegment duration
+        write_u8!(writer, 0x90); // first bit is startsWithSAP(=1), next 3 bits are SAP type (=001)
+        write_u24!(writer, 0); // SAP delta time
         Ok(())
     }
 }
@@ -56,8 +106,11 @@ impl Mp4Box for MovieFragmentBox {
 }
 
 /// 8.8.5 Movie Fragment Header Box (ISO/IEC 14496-12).
+#[allow(missing_docs)]
 #[derive(Debug, Default)]
-pub struct MovieFragmentHeaderBox;
+pub struct MovieFragmentHeaderBox {
+    pub sequence_number: u32,
+}
 impl Mp4Box for MovieFragmentHeaderBox {
     const BOX_TYPE: [u8; 4] = *b"mfhd";
 
@@ -65,7 +118,7 @@ impl Mp4Box for MovieFragmentHeaderBox {
         Some(0)
     }
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        write_u32!(writer, 1); // sequence_number
+        write_u32!(writer, self.sequence_number); // sequence_number
         Ok(())
     }
 }
@@ -88,7 +141,7 @@ impl TrackFragmentBox {
         };
         TrackFragmentBox {
             tfhd_box: TrackFragmentHeaderBox::new(track_id),
-            tfdt_box: TrackFragmentBaseMediaDecodeTimeBox,
+            tfdt_box: TrackFragmentBaseMediaDecodeTimeBox::new(0),
             trun_box: TrackRunBox::default(),
         }
     }
@@ -166,8 +219,19 @@ impl Mp4Box for TrackFragmentHeaderBox {
 }
 
 /// 8.8.12 Track fragment decode time (ISO/IEC 14496-12).
-#[derive(Debug)]
-pub struct TrackFragmentBaseMediaDecodeTimeBox;
+#[allow(missing_docs)]
+#[derive(Debug, Default)]
+pub struct TrackFragmentBaseMediaDecodeTimeBox {
+    pub earliest_pres_time: u32,
+}
+
+impl TrackFragmentBaseMediaDecodeTimeBox {
+    fn new(earliest_pres_time: u32) -> Self {
+        TrackFragmentBaseMediaDecodeTimeBox {
+            earliest_pres_time,
+        }
+    }
+}
 impl Mp4Box for TrackFragmentBaseMediaDecodeTimeBox {
     const BOX_TYPE: [u8; 4] = *b"tfdt";
 
@@ -175,7 +239,7 @@ impl Mp4Box for TrackFragmentBaseMediaDecodeTimeBox {
         Some(0)
     }
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        write_u32!(writer, 0); // base_media_decode_time
+        write_u32!(writer, self.earliest_pres_time); // earliest presentation time (aka timestamp)
         Ok(())
     }
 }
@@ -210,6 +274,7 @@ impl Mp4Box for TrackRunBox {
             write_i32!(writer, x);
         }
         if let Some(x) = self.first_sample_flags {
+            println!("trun: first_sample_flags: 0x{:x}", x.to_u32());
             write_u32!(writer, x.to_u32());
         }
 
@@ -271,7 +336,7 @@ pub struct SampleFlags {
     pub sample_degradation_priority: u16,
 }
 impl SampleFlags {
-    fn to_u32(&self) -> u32 {
+    pub fn to_u32(&self) -> u32 {
         (u32::from(self.is_leading) << 26) | (u32::from(self.sample_depends_on) << 24)
             | (u32::from(self.sample_is_depdended_on) << 22)
             | (u32::from(self.sample_has_redundancy) << 20)
