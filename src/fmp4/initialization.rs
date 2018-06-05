@@ -264,8 +264,8 @@ impl Mp4Box for TrackHeaderBox {
     }
     fn box_flags(&self) -> Option<u32> {
         // track_enabled | track_in_movie | track_in_preview
-        //let flags = 0x00_0001 | 0x00_0002 | 0x00_0004;
-        let flags = 0x00_000f;
+        let flags = 0x00_0001 | 0x00_0002 | 0x00_0004;
+        //let flags = 0x00_000f;
         Some(flags)
     }
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
