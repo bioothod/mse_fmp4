@@ -64,11 +64,11 @@ impl ProducerReferenceTimeBox {
         };
 
         let seconds = media_time / (timescale as u64);
-        let fraction = media_time % (timescale as u64);
+        let fraction = (media_time & 0xffffffff) / 0xffffffff;
 
-        let mut ntp_timestamp: u64 = fraction as u64;
+        let mut ntp_timestamp: u64 = seconds as u64;
         ntp_timestamp <<= 32;
-        ntp_timestamp |= seconds;
+        ntp_timestamp |= fraction;
 
         ProducerReferenceTimeBox {
             track_id,
@@ -96,6 +96,7 @@ impl Mp4Box for ProducerReferenceTimeBox {
 #[allow(missing_docs)]
 #[derive(Debug, Default)]
 pub struct SegmentIndexBox {
+    pub reference_id: u32,
     pub reference_size: u32,
     pub earliest_pres_time: u32,
     pub duration: u32,
@@ -110,7 +111,7 @@ impl Mp4Box for SegmentIndexBox {
     }
 
     fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
-        write_u32!(writer, 2); // reference id
+        write_u32!(writer, self.reference_id); // reference id
         write_u32!(writer, self.timescale); // timescale
         write_u32!(writer, self.earliest_pres_time); // earlist presentation time
         write_u32!(writer, 0); // ???
