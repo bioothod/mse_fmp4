@@ -26,6 +26,7 @@ impl WriteTo for MediaSegment {
 #[derive(Debug, Default)]
 pub struct DashMediaSegment {
     pub styp_box: SegmentTypeBox,
+    pub prft_box: Option<ProducerReferenceTimeBox>,
     pub sidx_box: SegmentIndexBox,
     pub moof_box: MovieFragmentBox,
     pub mdat_boxes: Vec<MediaDataBox>,
@@ -34,12 +35,63 @@ impl WriteTo for DashMediaSegment {
     fn write_to<W: Write>(&self, mut writer: W) -> Result<()> {
         track_assert!(!self.mdat_boxes.is_empty(), ErrorKind::InvalidInput);
         write_box!(writer, self.styp_box);
+        if let Some(ref x) = self.prft_box {
+            write_box!(writer, x);
+        }
         write_box!(writer, self.sidx_box);
         write_box!(writer, self.moof_box);
         write_boxes!(writer, &self.mdat_boxes);
         Ok(())
     }
 }
+
+// 8.16.5 Producer Reference Time Box
+#[allow(missing_docs)]
+#[derive(Debug, Default)]
+pub struct ProducerReferenceTimeBox {
+    pub track_id: u32,
+    pub ntp_timestamp: u64,
+    pub media_time: u64,
+}
+
+impl ProducerReferenceTimeBox {
+    #[allow(missing_docs)]
+    pub fn new(is_video: bool, media_time: u64, timescale: u32) -> Self {
+        let track_id = if is_video {
+            VIDEO_TRACK_ID
+        } else {
+            AUDIO_TRACK_ID
+        };
+
+        let seconds = media_time / (timescale as u64);
+        let fraction = media_time % (timescale as u64);
+
+        let mut ntp_timestamp: u64 = fraction as u64;
+        ntp_timestamp <<= 32;
+        ntp_timestamp |= seconds;
+
+        ProducerReferenceTimeBox {
+            track_id,
+            ntp_timestamp,
+            media_time,
+        }
+    }
+}
+impl Mp4Box for ProducerReferenceTimeBox {
+    const BOX_TYPE: [u8; 4] = *b"prft";
+
+    fn box_version(&self) -> Option<u8> {
+        Some(1)
+    }
+
+    fn write_box_payload<W: Write>(&self, mut writer: W) -> Result<()> {
+        write_u32!(writer, self.track_id);
+        write_u64!(writer, self.ntp_timestamp);
+        write_u64!(writer, self.media_time);
+        Ok(())
+    }
+}
+
 
 #[allow(missing_docs)]
 #[derive(Debug, Default)]
@@ -336,6 +388,7 @@ pub struct SampleFlags {
     pub sample_degradation_priority: u16,
 }
 impl SampleFlags {
+    #[allow(missing_docs)]
     pub fn to_u32(&self) -> u32 {
         (u32::from(self.is_leading) << 26) | (u32::from(self.sample_depends_on) << 24)
             | (u32::from(self.sample_is_depdended_on) << 22)

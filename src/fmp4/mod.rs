@@ -9,7 +9,7 @@ pub use self::initialization::{AacSampleEntry, AvcConfigurationBox, AvcSampleEnt
                                SampleDescriptionBox, SampleEntry, SampleSizeBox, SampleTableBox,
                                SampleToChunkBox, SegmentTypeBox, SoundMediaHeaderBox, TimeToSampleBox, TrackBox,
                                TrackExtendsBox, TrackHeaderBox, VideoMediaHeaderBox};
-pub use self::media::{DashMediaSegment, MediaDataBox, MediaSegment, MovieFragmentBox, MovieFragmentHeaderBox,
+pub use self::media::{DashMediaSegment, MediaDataBox, MediaSegment, MovieFragmentBox, MovieFragmentHeaderBox, ProducerReferenceTimeBox,
                       Sample, SampleFlags, TrackFragmentBaseMediaDecodeTimeBox, TrackFragmentBox,
                       TrackFragmentHeaderBox, TrackRunBox};
 
