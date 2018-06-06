@@ -19,10 +19,6 @@ impl AvcDecoderConfigurationRecord {
     pub(crate) fn write_to<W: Write>(&self, mut writer: W) -> Result<()> {
         write_u8!(writer, 1); // configuration_version
 
-        match self.profile_idc {
-            100 | 110 | 122 | 144 => track_panic!(ErrorKind::Unsupported),
-            _ => {}
-        }
         write_u8!(writer, self.profile_idc);
         write_u8!(writer, self.constraint_set_flag);
         write_u8!(writer, self.level_idc);
@@ -73,13 +69,6 @@ impl SpsSummary {
 
         let mut reader = AvcBitReader::new(reader);
         let _seq_parameter_set_id = track!(reader.read_ue())?;
-
-        match profile_idc {
-            100 | 110 | 122 | 244 | 44 | 83 | 86 | 118 | 128 => {
-                track_panic!(ErrorKind::Unsupported, "profile_idc={}", profile_idc)
-            }
-            _ => {}
-        }
 
         let _log2_max_frame_num_minus4 = track!(reader.read_ue())?;
         let pic_order_cnt_type = track!(reader.read_ue())?;
